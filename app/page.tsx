@@ -3,10 +3,21 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from './contexts/AuthContext';
 
 export default function HomePage() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  // Redirect authenticated users to home page
+  useEffect(() => {
+    if (!loading && user) {
+      router.push('/pages/home');
+    }
+  }, [user, loading, router]);
 
   return (
     <div className="min-h-screen">

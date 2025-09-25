@@ -50,7 +50,7 @@ export default function SignupPage() {
       const result = await signup(formData);
       
       if (result.success) {
-        router.push('/'); 
+        router.push('/pages/home'); 
       } else {
         setError(result.error || 'Signup failed');
       }
