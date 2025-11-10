@@ -1,13 +1,14 @@
-'use client';
+"use client";
 
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../contexts/AuthContext';
+import axios from 'axios';
 
 export default function HomePage() {
-  const [activeCategory, setActiveCategory] = useState('All');
+  const [stores, setStores] = useState<any[]>([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, logout, loading } = useAuth();
   const router = useRouter();
@@ -18,6 +19,21 @@ export default function HomePage() {
       router.push('/auth/login');
     }
   }, [user, loading, router]);
+
+  // Fetch stores when a user is present. Keep this hook unconditional to preserve hook order.
+  useEffect(() => {
+    if (loading || !user) return;
+    const fetchStores = async () => {
+      try {
+        const res = await axios.get('/api/stores');
+        setStores(res.data.stores || []);
+      } catch (err) {
+        console.error('Failed to fetch stores', err);
+      }
+    };
+
+    fetchStores();
+  }, [user, loading]);
 
 
   if (loading) {
@@ -36,71 +52,8 @@ export default function HomePage() {
     return null;
   }
 
-  const menuCategories = ['All', 'Street Food', 'North Indian', 'South Indian', 'Biryani'];
 
-  const menuItems = [
-    {
-      id: 1,
-      name: 'Mumbai Pav Bhaji',
-      description: 'Spicy mixed vegetable curry served with buttered and toasted bread rolls, topped with onions and coriander',
-      price: '₹120',
-      image: '/pav-bhaji.jpg', 
-      category: 'Street Food'
-    },
-    {
-      id: 2,
-      name: 'Masala Dosa',
-      description: 'Crispy rice crepe filled with spiced potato filling, served with coconut chutney and sambar',
-      price: '₹80',
-      image: '/coconut-splash.jpg',
-      category: 'South Indian'
-    },
-    {
-      id: 3,
-      name: 'Chole Bhature',
-      description: 'Spicy chickpea curry served with fluffy deep-fried bread, pickled onions and green chutney',
-      price: '₹150',
-      image: '/coconut-splash.jpg', 
-      category: 'North Indian'
-    },
-    {
-      id: 4,
-      name: 'Vada Pav',
-      description: 'Mumbai\'s iconic street burger - spiced potato fritter in a bun with chutneys and fried green chilies',
-      price: '₹25',
-      image: '/coconut-splash.jpg', 
-      category: 'Street Food'
-    },
-    {
-      id: 5,
-      name: 'Butter Chicken',
-      description: 'Tender chicken in rich, creamy tomato-based curry with aromatic spices, served with naan or rice',
-      price: '₹280',
-      image: '/sushi-floating.jpg', 
-      category: 'North Indian'
-    },
-    {
-      id: 6,
-      name: 'Hyderabadi Biryani',
-      description: 'Fragrant basmati rice layered with tender mutton, saffron, and aromatic spices, slow-cooked to perfection',
-      price: '₹350',
-      image: '/sushi-floating.jpg', 
-      category: 'Biryani'
-    }
-  ];
-
-  const featuredItems = [
-    {
-      name: 'Samosa Chat',
-      image: '/coconut-splash.jpg', 
-      category: 'Street Food'
-    },
-    {
-      name: 'Kulfi Faluda',
-      image: '/sushi-floating.jpg', 
-      category: 'Desserts'
-    }
-  ];
+  
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -129,6 +82,7 @@ export default function HomePage() {
               <a href="#" className="text-gray-700 hover:text-orange-600 transition-colors">Regional</a>
               <a href="#" className="text-gray-700 hover:text-orange-600 transition-colors">About</a>
               <a href="#" className="text-gray-700 hover:text-orange-600 transition-colors">Contact</a>
+              <a href="/pages/addstore" className="text-gray-700 hover:text-orange-600 transition-colors font-semibold">Add Store</a>
             </div>
 
             {/* User Menu */}
@@ -318,20 +272,49 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Featured Items */}
+      {/* Stores List */}
       <section className="bg-white py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-end space-x-6">
-            {featuredItems.map((item, index) => (
-              <div key={index} className="flex items-center space-x-3 bg-gray-50 rounded-full px-6 py-3">
-                <div className="w-12 h-12 bg-red-500 rounded-full"></div>
-                <div>
-                  <p className="font-semibold text-gray-900">{item.name}</p>
-                  <p className="text-sm text-gray-600">{item.category}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Nearby Food Stores</h2>
+          {stores.length === 0 ? (
+            <p className="text-gray-600">No stores added yet.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {stores.map((s: any) => (
+                <Link key={s._id} href={`/pages/store/${s._id}`} className="block bg-gray-50 rounded-lg p-4 shadow-sm hover:shadow-md transition">
+                  <div className="w-full h-40 bg-gray-200 rounded overflow-hidden mb-3">
+                    {s.imagePath ? (
+                      // Next/Image requires a fixed layout; use img for simplicity
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={s.imagePath} alt={s.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-500">No image</div>
+                    )}
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">{s.name}</h3>
+                  <p className="text-sm text-gray-600">{s.phone}</p>
+                  <p className="text-sm text-gray-600">{s.openingTime} - {s.closingTime}</p>
+                  <p className="text-sm text-gray-500 mt-2">Lat: {s.location?.lat?.toFixed(4)}, Lng: {s.location?.lng?.toFixed(4)}</p>
+                  {s.foods && s.foods.length > 0 && (
+                    <div className="mt-3">
+                      <h4 className="text-sm font-semibold text-gray-800 mb-2">Foods</h4>
+                      <div className="space-y-2">
+                        {s.foods.map((food: any, i: number) => (
+                          <div key={i} className="p-2 bg-white rounded border">
+                            <div className="flex justify-between items-center">
+                              <div className="font-medium text-gray-900">{food.name}</div>
+                              {food.price ? <div className="text-sm text-gray-600">{food.price}</div> : null}
+                            </div>
+                            {food.description ? <div className="text-sm text-gray-600 mt-1">{food.description}</div> : null}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -378,82 +361,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Browse Our Menu Section */}
-      <section className="bg-white py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4">Popular Indian Dishes</h2>
-            
-            {/* Category Tabs */}
-            <div className="flex justify-center space-x-2 mt-8">
-              {menuCategories.map((category) => (
-                <button
-                  key={category}
-                  onClick={() => setActiveCategory(category)}
-                  className={`px-6 py-2 rounded-full transition-colors ${
-                    activeCategory === category
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {category}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Menu Items Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {menuItems
-              .filter(item => activeCategory === 'All' || item.category === activeCategory)
-              .map((item) => (
-                <div key={item.id} className="flex space-x-4 p-4 hover:bg-gray-50 rounded-lg transition-colors">
-                  <div className="w-24 h-24 bg-gradient-to-br from-orange-400 to-red-500 rounded-xl flex-shrink-0"></div>
-                  <div className="flex-1">
-                    <h3 className="font-bold text-gray-900 mb-2">{item.name}</h3>
-                    <p className="text-gray-600 text-sm mb-3 leading-relaxed">{item.description}</p>
-                    <p className="font-bold text-lg text-gray-900">{item.price}</p>
-                  </div>
-                </div>
-              ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Check Out What's On Our Menu */}
-      <section className="bg-gray-100 py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4">
-              Explore Authentic<br />Indian Food Categories
-            </h2>
-            <p className="text-gray-600 max-w-2xl mx-auto">
-              From spicy street food to royal biryanis, discover the diverse flavors of India. 
-              Each region brings its unique taste and cooking traditions.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            {/* Street Food */}
-            <div className="bg-yellow-100 rounded-2xl p-8 text-center hover:shadow-lg transition-shadow">
-              <div className="w-32 h-32 bg-red-500 rounded-full mx-auto mb-6 flex items-center justify-center">
-                <span className="text-white font-bold text-3xl">🌶️</span>
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-4">Street Food</h3>
-              <p className="text-gray-600">Pav Bhaji, Vada Pav, Chat Items</p>
-            </div>
-
-            {/* Biryani & Rice */}
-            <div className="bg-orange-100 rounded-2xl p-8 text-center hover:shadow-lg transition-shadow">
-              <div className="w-32 h-32 bg-orange-500 rounded-full mx-auto mb-6 flex items-center justify-center">
-                <span className="text-white font-bold text-3xl">�</span>
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-4">Biryani & Rice</h3>
-              <p className="text-gray-600">Hyderabadi, Lucknowi, Kolkata Style</p>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* Removed mock menu and categories — showing stores instead above */}
     </div>
   );
 }

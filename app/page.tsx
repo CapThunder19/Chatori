@@ -33,6 +33,15 @@ export default function HomePage() {
               </div>
             </div>
 
+            <div className="hidden md:flex items-center space-x-4">
+              <Link
+                href="/pages/addstore"
+                className="text-white bg-orange-600 px-3 py-2 rounded-full text-sm font-medium hover:bg-orange-500"
+              >
+                Add Store
+              </Link>
+            </div>
+
             
 
 
