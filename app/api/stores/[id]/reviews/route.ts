@@ -4,7 +4,7 @@ import { Store } from '@/app/models/Store';
 import { reviewSchema } from '@/app/lib/validations';
 import { ZodError } from 'zod';
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: any) {
     try {
         await connectDB();
         // `params` can be an async object in newer Next.js versions — await it before using
@@ -47,10 +47,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 }
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: any) {
     try {
         await connectDB();
-        const store = await Store.findById(params.id).select('reviews');
+        const { id } = await params as any;
+        const store = await Store.findById(id).select('reviews');
         if (!store) {
             return NextResponse.json({ error: 'Store not found' }, { status: 404 });
         }

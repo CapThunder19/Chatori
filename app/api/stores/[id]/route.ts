@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/app/lib/db';
 import { Store } from '@/app/models/Store';
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: any) {
     try {
         await connectDB();
         const { id } = await params as any;
