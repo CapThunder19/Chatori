@@ -9,6 +9,10 @@ import axios from 'axios';
 
 export default function HomePage() {
   const [stores, setStores] = useState<any[]>([]);
+  const [topRated, setTopRated] = useState<any[]>([]);
+  const [trending, setTrending] = useState<any[]>([]);
+  const [nearbyStores, setNearbyStores] = useState<any[]>([]);
+  const [userCoords, setUserCoords] = useState<{lat:number,lng:number}|null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, logout, loading } = useAuth();
   const router = useRouter();
@@ -34,6 +38,84 @@ export default function HomePage() {
 
     fetchStores();
   }, [user, loading]);
+
+
+  // Compute Top Rated, Trending and Nearby groups from fetched stores
+  useEffect(() => {
+    if (!stores || stores.length === 0) {
+      setTopRated([]);
+      setTrending([]);
+      setNearbyStores([]);
+      return;
+    }
+
+    // helper: average rating
+    const computeAvg = (s: any) => {
+      const reviews = s.reviews || [];
+      if (reviews.length === 0) return 0;
+      const sum = reviews.reduce((a: number, r: any) => a + (r.rating || 0), 0);
+      return sum / reviews.length;
+    };
+
+    // Top Rated: sort by avg rating
+    const withAvg = stores.map(s => ({ ...s, _avg: computeAvg(s) }));
+    const top = [...withAvg].sort((a, b) => (b._avg || 0) - (a._avg || 0)).slice(0, 6);
+
+    // Trending: stores with most recent reviews (last 30 days)
+    const THIRTY_DAYS = 1000 * 60 * 60 * 24 * 30;
+    const now = Date.now();
+    const withRecentCount = withAvg.map(s => {
+      const recent = (s.reviews || []).filter((r: any) => {
+        try {
+          return now - new Date(r.createdAt).getTime() <= THIRTY_DAYS;
+        } catch (e) {
+          return false;
+        }
+      }).length;
+      return { ...s, _recentCount: recent };
+    });
+    const trend = [...withRecentCount].sort((a, b) => (b._recentCount || 0) - (a._recentCount || 0)).slice(0, 6);
+
+    // Nearby: if we have user coords, sort by distance
+    const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+      const toRad = (x: number) => (x * Math.PI) / 180;
+      const R = 6371; // km
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    };
+
+    let nearby: any[] = [];
+    if (userCoords) {
+      nearby = withAvg
+        .filter(s => s.location && typeof s.location.lat === 'number' && typeof s.location.lng === 'number')
+        .map(s => ({ ...s, _dist: haversine(userCoords.lat, userCoords.lng, s.location.lat, s.location.lng) }))
+        .sort((a, b) => (a._dist || 0) - (b._dist || 0))
+        .slice(0, 6);
+    }
+
+    setTopRated(top);
+    setTrending(trend);
+    setNearbyStores(nearby);
+  }, [stores, userCoords]);
+
+  const requestLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      },
+      (err) => {
+        console.error('Geolocation error', err);
+        alert('Unable to access location');
+      }
+    );
+  };
 
 
   if (loading) {
@@ -156,7 +238,7 @@ export default function HomePage() {
                 >
                   Explore Food Stalls
                 </Link>
-                <button className="border border-orange-300 text-orange-600 px-8 py-3 rounded-full font-semibold hover:bg-orange-50 transition-colors">
+                <button onClick={requestLocation} className="border border-orange-300 text-orange-600 px-8 py-3 rounded-full font-semibold hover:bg-orange-50 transition-colors">
                   Find Near Me
                 </button>
               </div>
@@ -273,66 +355,137 @@ export default function HomePage() {
       </section>
 
       {/* Stores List */}
+      {/* Featured Sections: Top Rated, Trending, Nearby */}
       <section className="bg-white py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Nearby Food Stores</h2>
-          {stores.length === 0 ? (
-            <p className="text-gray-600">No stores added yet.</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {stores.map((s: any) => {
-                const reviewCount = (s.reviews || []).length;
-                const avgRating = reviewCount ? ((s.reviews || []).reduce((a: number, r: any) => a + (r.rating || 0), 0) / reviewCount) : 0;
-                const foodsCount = (s.foods || []).length;
-                return (
-                  <Link key={s._id} href={`/pages/store/${s._id}`} className="block bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition transform hover:-translate-y-1">
-                    <div className="w-full h-44 bg-gray-100 rounded overflow-hidden mb-3">
-                      {s.imagePath ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={s.imagePath} alt={s.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-400">No image</div>
-                      )}
-                    </div>
-
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900">{s.name}</h3>
-                        <p className="text-sm text-gray-600">{s.phone} · {s.openingTime} - {s.closingTime}</p>
-                        <p className="text-sm text-gray-500 mt-2">Lat: {s.location?.lat?.toFixed(4)}, Lng: {s.location?.lng?.toFixed(4)}</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
+          {/* Top Rated */}
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Top Rated</h2>
+            {topRated.length === 0 ? (
+              <p className="text-gray-600">No top rated stores yet.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {topRated.map((s: any) => {
+                  const reviewCount = (s.reviews || []).length;
+                  const avgRating = s._avg || 0;
+                  const foodsCount = (s.foods || []).length;
+                  return (
+                    <Link key={s._id} href={`/pages/store/${s._id}`} className="block bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition transform hover:-translate-y-1">
+                      <div className="w-full h-44 bg-gray-100 rounded overflow-hidden mb-3">
+                        {s.imagePath ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={s.imagePath} alt={s.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">No image</div>
+                        )}
                       </div>
 
-                      <div className="flex flex-col items-end">
-                        <div className="text-sm text-yellow-500 font-semibold">{avgRating ? Array.from({length: Math.round(avgRating)}).map((_,i)=> '★').join('') : '—'}</div>
-                        <div className="text-xs text-gray-500">{reviewCount} review{reviewCount!==1 ? 's' : ''}</div>
-                        <div className="mt-2 text-xs text-gray-600">{foodsCount} food{foodsCount!==1 ? 's' : ''}</div>
-                      </div>
-                    </div>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-gray-900">{s.name}</h3>
+                          <p className="text-sm text-gray-600">{s.phone} · {s.openingTime} - {s.closingTime}</p>
+                        </div>
 
-                    {foodsCount > 0 && (
-                      <div className="mt-3">
-                        <h4 className="text-sm font-semibold text-gray-800 mb-2">Top foods</h4>
-                        <div className="space-y-2">
-                          {(s.foods || []).slice(0,3).map((food: any, i: number) => (
-                            <div key={i} className="p-2 bg-gray-50 rounded border">
-                              <div className="flex justify-between items-center">
-                                <div className="font-medium text-gray-900">{food.name}</div>
-                                {food.price ? <div className="text-sm text-gray-600">{food.price}</div> : null}
-                              </div>
-                              {food.description ? <div className="text-sm text-gray-600 mt-1 line-clamp-2">{food.description}</div> : null}
-                            </div>
-                          ))}
-                          {foodsCount > 3 && (
-                            <div className="text-xs text-blue-600 mt-2">View all foods →</div>
-                          )}
+                        <div className="flex flex-col items-end">
+                          <div className="text-sm text-yellow-500 font-semibold">{avgRating ? Array.from({length: Math.round(avgRating)}).map((_,i)=> '★').join('') : '—'}</div>
+                          <div className="text-xs text-gray-500">{reviewCount} review{reviewCount!==1 ? 's' : ''}</div>
+                          <div className="mt-2 text-xs text-gray-600">{foodsCount} food{foodsCount!==1 ? 's' : ''}</div>
                         </div>
                       </div>
-                    )}
-                  </Link>
-                );
-              })}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Trending */}
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Trending</h2>
+            {trending.length === 0 ? (
+              <p className="text-gray-600">No trending stores right now.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {trending.map((s: any) => {
+                  const reviewCount = (s.reviews || []).length;
+                  const avgRating = s._avg || 0;
+                  const recentCount = s._recentCount || 0;
+                  return (
+                    <Link key={s._id} href={`/pages/store/${s._id}`} className="block bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition transform hover:-translate-y-1">
+                      <div className="w-full h-44 bg-gray-100 rounded overflow-hidden mb-3">
+                        {s.imagePath ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={s.imagePath} alt={s.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">No image</div>
+                        )}
+                      </div>
+
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-gray-900">{s.name}</h3>
+                          <p className="text-sm text-gray-600">{s.phone} · {s.openingTime} - {s.closingTime}</p>
+                          <p className="text-xs text-gray-500 mt-1">{recentCount} new review{recentCount!==1 ? 's' : ''} in last 30 days</p>
+                        </div>
+
+                        <div className="flex flex-col items-end">
+                          <div className="text-sm text-yellow-500 font-semibold">{avgRating ? Array.from({length: Math.round(avgRating)}).map((_,i)=> '★').join('') : '—'}</div>
+                          <div className="text-xs text-gray-500">{reviewCount} review{reviewCount!==1 ? 's' : ''}</div>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Nearby */}
+          <div>
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Nearby</h2>
+              <button onClick={requestLocation} className="text-sm text-orange-600 underline">Refresh location</button>
             </div>
-          )}
+            {!userCoords ? (
+              <p className="text-gray-600">Allow location access or click "Find Near Me" to show nearby stores.</p>
+            ) : nearbyStores.length === 0 ? (
+              <p className="text-gray-600">No nearby stores found.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {nearbyStores.map((s: any) => {
+                  const reviewCount = (s.reviews || []).length;
+                  const avgRating = s._avg || 0;
+                  const foodsCount = (s.foods || []).length;
+                  return (
+                    <Link key={s._id} href={`/pages/store/${s._id}`} className="block bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition transform hover:-translate-y-1">
+                      <div className="w-full h-44 bg-gray-100 rounded overflow-hidden mb-3">
+                        {s.imagePath ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={s.imagePath} alt={s.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">No image</div>
+                        )}
+                      </div>
+
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-gray-900">{s.name}</h3>
+                          <p className="text-sm text-gray-600">{s.phone} · {s.openingTime} - {s.closingTime}</p>
+                          <p className="text-xs text-gray-500 mt-1">Distance: {s._dist ? `${s._dist.toFixed(1)} km` : '—'}</p>
+                        </div>
+
+                        <div className="flex flex-col items-end">
+                          <div className="text-sm text-yellow-500 font-semibold">{avgRating ? Array.from({length: Math.round(avgRating)}).map((_,i)=> '★').join('') : '—'}</div>
+                          <div className="text-xs text-gray-500">{reviewCount} review{reviewCount!==1 ? 's' : ''}</div>
+                          <div className="mt-2 text-xs text-gray-600">{foodsCount} food{foodsCount!==1 ? 's' : ''}</div>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
