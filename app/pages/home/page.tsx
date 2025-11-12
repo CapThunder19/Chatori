@@ -39,9 +39,9 @@ export default function HomePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
+          <div className="text-center">
           <div className="w-12 h-12 bg-orange-500 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading Chatori...</p>
+          <p className="text-gray-600">Loading Foodstore Finder...</p>
         </div>
       </div>
     );
@@ -71,7 +71,7 @@ export default function HomePage() {
                 <div className="w-8 h-8 bg-orange-600 rounded-full mr-2 flex items-center justify-center">
                   <span className="text-white font-bold text-sm">🍛</span>
                 </div>
-                <span className="text-xl font-bold text-orange-600">CHATORI</span>
+                <span className="text-xl font-bold text-orange-600">Foodstore Finder</span>
               </div>
             </div>
 
@@ -107,7 +107,7 @@ export default function HomePage() {
                   href="/auth/login"
                   className="bg-orange-600 text-white px-6 py-2 rounded-full hover:bg-orange-700 transition-colors"
                 >
-                  Join Chatori
+                  Join Foodstore Finder
                 </Link>
               )}
             </div>
@@ -280,58 +280,76 @@ export default function HomePage() {
             <p className="text-gray-600">No stores added yet.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {stores.map((s: any) => (
-                <Link key={s._id} href={`/pages/store/${s._id}`} className="block bg-gray-50 rounded-lg p-4 shadow-sm hover:shadow-md transition">
-                  <div className="w-full h-40 bg-gray-200 rounded overflow-hidden mb-3">
-                    {s.imagePath ? (
-                      // Next/Image requires a fixed layout; use img for simplicity
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={s.imagePath} alt={s.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-500">No image</div>
-                    )}
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900">{s.name}</h3>
-                  <p className="text-sm text-gray-600">{s.phone}</p>
-                  <p className="text-sm text-gray-600">{s.openingTime} - {s.closingTime}</p>
-                  <p className="text-sm text-gray-500 mt-2">Lat: {s.location?.lat?.toFixed(4)}, Lng: {s.location?.lng?.toFixed(4)}</p>
-                  {s.foods && s.foods.length > 0 && (
-                    <div className="mt-3">
-                      <h4 className="text-sm font-semibold text-gray-800 mb-2">Foods</h4>
-                      <div className="space-y-2">
-                        {s.foods.map((food: any, i: number) => (
-                          <div key={i} className="p-2 bg-white rounded border">
-                            <div className="flex justify-between items-center">
-                              <div className="font-medium text-gray-900">{food.name}</div>
-                              {food.price ? <div className="text-sm text-gray-600">{food.price}</div> : null}
-                            </div>
-                            {food.description ? <div className="text-sm text-gray-600 mt-1">{food.description}</div> : null}
-                          </div>
-                        ))}
+              {stores.map((s: any) => {
+                const reviewCount = (s.reviews || []).length;
+                const avgRating = reviewCount ? ((s.reviews || []).reduce((a: number, r: any) => a + (r.rating || 0), 0) / reviewCount) : 0;
+                const foodsCount = (s.foods || []).length;
+                return (
+                  <Link key={s._id} href={`/pages/store/${s._id}`} className="block bg-white rounded-lg p-4 shadow-sm hover:shadow-md transition transform hover:-translate-y-1">
+                    <div className="w-full h-44 bg-gray-100 rounded overflow-hidden mb-3">
+                      {s.imagePath ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={s.imagePath} alt={s.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">No image</div>
+                      )}
+                    </div>
+
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900">{s.name}</h3>
+                        <p className="text-sm text-gray-600">{s.phone} · {s.openingTime} - {s.closingTime}</p>
+                        <p className="text-sm text-gray-500 mt-2">Lat: {s.location?.lat?.toFixed(4)}, Lng: {s.location?.lng?.toFixed(4)}</p>
+                      </div>
+
+                      <div className="flex flex-col items-end">
+                        <div className="text-sm text-yellow-500 font-semibold">{avgRating ? Array.from({length: Math.round(avgRating)}).map((_,i)=> '★').join('') : '—'}</div>
+                        <div className="text-xs text-gray-500">{reviewCount} review{reviewCount!==1 ? 's' : ''}</div>
+                        <div className="mt-2 text-xs text-gray-600">{foodsCount} food{foodsCount!==1 ? 's' : ''}</div>
                       </div>
                     </div>
-                  )}
-                </Link>
-              ))}
+
+                    {foodsCount > 0 && (
+                      <div className="mt-3">
+                        <h4 className="text-sm font-semibold text-gray-800 mb-2">Top foods</h4>
+                        <div className="space-y-2">
+                          {(s.foods || []).slice(0,3).map((food: any, i: number) => (
+                            <div key={i} className="p-2 bg-gray-50 rounded border">
+                              <div className="flex justify-between items-center">
+                                <div className="font-medium text-gray-900">{food.name}</div>
+                                {food.price ? <div className="text-sm text-gray-600">{food.price}</div> : null}
+                              </div>
+                              {food.description ? <div className="text-sm text-gray-600 mt-1 line-clamp-2">{food.description}</div> : null}
+                            </div>
+                          ))}
+                          {foodsCount > 3 && (
+                            <div className="text-xs text-blue-600 mt-2">View all foods →</div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </Link>
+                );
+              })}
             </div>
           )}
         </div>
       </section>
 
-      {/* Chatori Platform Info Section */}
+  {/* Foodstore Finder Platform Info Section */}
       <section className="bg-orange-600 text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* Left Content */}
             <div>
-              <h2 className="text-3xl lg:text-4xl font-bold mb-6">About Chatori Platform</h2>
+              <h2 className="text-3xl lg:text-4xl font-bold mb-6">About Foodstore Finder</h2>
               <p className="text-orange-200 mb-6 leading-relaxed">
-                Chatori connects food lovers with authentic Indian street food and local delicacies. 
+                Foodstore Finder connects food lovers with authentic street food and local delicacies. 
                 Discover hidden gems, traditional recipes, and the best food stalls in your city. 
-                From Mumbai's vada pav to Delhi's chole bhature - taste India's rich culinary heritage!
+                From regional snacks to beloved classics — taste rich culinary heritage near you!
               </p>
               <p className="text-sm text-orange-300 mb-8">
-                Join thousands of food explorers: Chatori.com
+                Join thousands of food explorers: Foodstore Finder
               </p>
               <div className="space-y-2 text-sm">
                 <p>🍛 Food Stalls Listed: 5000+</p>

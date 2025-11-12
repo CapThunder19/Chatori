@@ -29,7 +29,7 @@ export default function HomePage() {
             <div className="flex items-center">
               <div className="flex-shrink-0 flex items-center">
                 <div className="w-8 h-8 bg-white rounded-full mr-2"></div>
-                <span className="text-xl font-bold text-white">CHATORI</span>
+                <span className="text-xl font-bold text-white">Foodstore Finder</span>
               </div>
             </div>
 

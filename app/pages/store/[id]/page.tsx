@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import axios from 'axios';
 import { useAuth } from '@/app/contexts/AuthContext';
@@ -37,6 +37,49 @@ export default function StoreDetailPage() {
     };
     fetchStore();
   }, [id]);
+
+  // initialize leaflet map for store location (client-side dynamic import)
+  useEffect(() => {
+    if (!store || !store.location) return;
+    let map: any;
+    let L: any;
+    let mounted = true;
+
+    const initMap = async () => {
+      try {
+        const mod = await import('leaflet');
+        L = mod.default || mod;
+        const container = document.getElementById('store-map');
+        if (!container) return;
+        // clear any previous map content to avoid duplicate map instances
+        container.innerHTML = '';
+
+        const lat = Number(store.location.lat);
+        const lng = Number(store.location.lng);
+        map = L.map(container).setView([lat, lng], 15);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        const marker = L.marker([lat, lng]).addTo(map);
+        marker.bindPopup(`<strong>${store.name}</strong>`).openPopup();
+      } catch (err) {
+        console.error('Failed to load Leaflet map', err);
+      }
+    };
+
+    initMap();
+
+    return () => {
+      mounted = false;
+      try {
+        if (map) map.remove();
+      } catch (e) {
+        /* ignore */
+      }
+    };
+  }, [store]);
 
   const submitReview = async () => {
     try {
@@ -79,57 +122,143 @@ export default function StoreDetailPage() {
     }
   };
 
-  if (loading) return <div className="p-8">Loading...</div>;
-  if (!store) return <div className="p-8">Store not found.</div>;
+  if (loading) return (
+    <div className="min-h-screen bg-orange-50 flex items-center justify-center">
+      <div className="text-center">
+        <div className="w-12 h-12 bg-orange-500 rounded-full animate-spin mx-auto mb-4"></div>
+        <p className="text-gray-600">Loading store...</p>
+      </div>
+    </div>
+  );
 
-  return (
-    <div className="min-h-screen p-6">
-      <button onClick={() => router.back()} className="mb-4 text-blue-600">← Back</button>
-      <div className="max-w-3xl mx-auto bg-white p-6 rounded shadow">
-        <h1 className="text-2xl font-bold mb-2">{store.name}</h1>
-        <p className="text-sm text-gray-600 mb-2">{store.phone} · {store.openingTime} - {store.closingTime}</p>
-        {store.imagePath ? (<img src={store.imagePath} className="w-full h-64 object-cover rounded mb-4" alt={store.name} />) : null}
-
-        <h3 className="text-lg font-semibold mb-2">Foods</h3>
-        <div className="space-y-3 mb-4">
-          {store.foods && store.foods.length ? store.foods.map((f: any, i: number) => (
-            <div key={i} className="p-3 border rounded">
-              <div className="flex justify-between">
-                <div className="font-medium">{f.name}</div>
-                {f.price ? <div className="text-sm text-gray-600">{f.price}</div> : null}
-              </div>
-              {f.description ? <div className="text-sm text-gray-600 mt-1">{f.description}</div> : null}
-            </div>
-          )) : <p className="text-gray-600">No food listed.</p>}
-        </div>
-
-        <h3 className="text-lg font-semibold mb-2">Reviews</h3>
-        <div className="space-y-3 mb-4">
-          {store.reviews && store.reviews.length ? store.reviews.map((r: any, i: number) => (
-            <div key={i} className="p-3 border rounded">
-              <div className="flex justify-between items-center">
-                <div className="font-medium">{r.name || 'Anonymous'}</div>
-                <div className="text-sm text-yellow-600">{Array.from({length: r.rating}).map((_,i)=> '★').join('')}</div>
-              </div>
-              {r.comment ? <div className="text-sm text-gray-600 mt-1">{r.comment}</div> : null}
-            </div>
-          )) : <p className="text-gray-600">No reviews yet. Be the first!</p>}
-        </div>
-
-        <div className="border-t pt-4">
-          <h4 className="font-semibold mb-2">Add a review</h4>
-          <div className="mb-2">Rating:</div>
-          <div className="flex gap-2 mb-3">
-            { [1,2,3,4,5].map(n => (
-              <button key={n} type="button" onClick={() => setRating(n)} className={`px-3 py-1 rounded ${rating>=n? 'bg-yellow-400':'bg-gray-200'}`}>{n}★</button>
-            ))}
-          </div>
-          <textarea value={comment} onChange={(e)=>setComment(e.target.value)} rows={3} className="w-full p-2 border rounded mb-3" placeholder="Write your review (optional)" />
-          <div className="flex justify-end">
-            <button onClick={submitReview} className="px-4 py-2 bg-blue-600 text-white rounded">Submit Review</button>
-          </div>
+  if (!store) return (
+    <div className="min-h-screen bg-orange-50 p-6 flex items-center justify-center">
+      <div className="max-w-xl w-full bg-white rounded-2xl shadow-md p-6 text-center">
+        <h2 className="text-xl font-semibold text-gray-800 mb-2">Store not found</h2>
+        <p className="text-gray-600 mb-4">We couldn't find the store you're looking for. It may have been removed.</p>
+        <div className="flex justify-center">
+          <button onClick={() => router.push('/pages/home')} className="px-4 py-2 bg-orange-600 text-white rounded-full">Go back</button>
         </div>
       </div>
     </div>
   );
+
+return (
+  <div className="min-h-screen bg-orange-50 p-6 flex justify-center">
+    <div className="max-w-3xl w-full">
+
+      {/* Back */}
+      <button onClick={() => router.back()} className="text-gray-600 text-sm mb-3 flex items-center gap-1">
+        ← Back
+      </button>
+
+      {/* Store Card */}
+      <div className="bg-white rounded-2xl shadow-md p-6 mb-6">
+        {store.imagePath && (
+          <img
+            src={store.imagePath}
+            alt={store.name}
+            className="w-full h-56 object-cover rounded-xl mb-4"
+          />
+        )}
+
+        <h1 className="text-2xl font-bold text-gray-800 mb-1">{store.name}</h1>
+        <p className="text-gray-600 mb-1">{store.phone}</p>
+        <p className="text-gray-500 text-sm">Open: {store.openingTime} - {store.closingTime}</p>
+      </div>
+
+      {/* Map showing store location */}
+      <div className="bg-white rounded-2xl shadow-md p-6 mb-6">
+        <h3 className="text-lg font-semibold mb-3">Location</h3>
+        {store.location && store.location.lat && store.location.lng ? (
+          <div id="store-map" className="w-full h-64 rounded-md overflow-hidden" />
+        ) : (
+          <p className="text-gray-500">Location not provided.</p>
+        )}
+      </div>
+
+      {/* Foods Section */}
+      <h2 className="text-xl font-semibold mb-3 text-gray-800">Menu</h2>
+      <div className="space-y-4 mb-8">
+        {store.foods && store.foods.length > 0 ? store.foods.map((food: any, index: number) => (
+          <div key={index} className="bg-white p-4 shadow-sm rounded-xl flex items-center gap-4">
+            {/* Food Image (optional) */}
+            {food.imagePath && (
+              <img
+                src={food.imagePath}
+                alt={food.name}
+                className="w-20 h-20 object-cover rounded-lg"
+              />
+            )}
+
+            <div className="flex-1">
+              <h3 className="font-semibold text-lg text-gray-800">{food.name}</h3>
+              {food.description && (
+                <p className="text-gray-500 text-sm leading-snug mt-1">{food.description}</p>
+              )}
+            </div>
+
+            {food.price && (
+              <div className="text-right font-bold text-green-600 whitespace-nowrap">
+                ₹ {food.price}
+              </div>
+            )}
+          </div>
+        )) : (
+          <p className="text-gray-500">No food listed.</p>
+        )}
+      </div>
+
+      {/* Reviews */}
+      <h2 className="text-xl font-semibold mb-3 text-gray-800">Reviews</h2>
+      <div className="space-y-4 mb-8">
+        {store.reviews && store.reviews.length > 0 ? store.reviews.map((review: any, i: number) => (
+          <div key={i} className="bg-white p-4 rounded-xl shadow-sm">
+            <div className="flex justify-between">
+              <p className="font-medium text-gray-800">{review.name || 'Anonymous'}</p>
+              <span className="text-yellow-500">{'★'.repeat(review.rating)}</span>
+            </div>
+            {review.comment && <p className="text-gray-600 text-sm mt-1">{review.comment}</p>}
+          </div>
+        )) : (
+          <p className="text-gray-500 text-sm">No reviews yet. Be the first!</p>
+        )}
+      </div>
+
+      {/* Add Review */}
+      <div className="bg-white p-5 rounded-2xl shadow-sm">
+        <h3 className="font-semibold text-gray-800 mb-3">Add a review</h3>
+
+        <div className="flex gap-2 mb-3">
+          {[1,2,3,4,5].map((n)=>(
+            <button
+              key={n}
+              onClick={() => setRating(n)}
+              className={`px-3 py-1 rounded-lg border ${rating >= n ? 'bg-yellow-400 border-yellow-500' : 'bg-gray-200 border-gray-300'}`}
+            >
+              {n}★
+            </button>
+          ))}
+        </div>
+
+        <textarea
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          rows={3}
+          placeholder="Write your review..."
+          className="w-full p-3 border rounded-xl mb-3 text-sm"
+        />
+
+        <button
+          onClick={submitReview}
+          className="w-full py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-semibold"
+        >
+          Submit Review
+        </button>
+      </div>
+
+    </div>
+  </div>
+);
+
 }
